@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- Global site tag (gtag.js) - Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-140781306-1"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'UA-140781306-1');
+    </script>
+    <meta charset='utf-8' />
+    <title>MyBusCompany</title>
+    <meta name='viewport' content='width = device-width initial-scale=1 maximum-scale=1' />
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.4.0/dist/leaflet.css" integrity="sha512-puBpdR0798OZvTTbP4A8Ix/l+A4dHDD0DGqYW6RQ+9jxkRFclaxxQb/SJAWZfWAkuyeQUytO7+7N4QKrDh+drA==" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.4.0/dist/leaflet.js" integrity="sha512-QVftwZFqvtRNi0ZyCtsznlKSWOStnDORoefr1enyq5mVL4tmKB3S/EnC3rRJcxCPavG10IcrVGSmPh6Qw5lwrg==" crossorigin=""></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet-routing-machine/3.2.12/leaflet-routing-machine.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-routing-machine/3.2.12/leaflet-routing-machine.js"></script>
+    <script src="https://unpkg.com/esri-leaflet"></script>
+    <link rel="stylesheet" href="https://unpkg.com/esri-leaflet-geocoder/dist/esri-leaflet-geocoder.css">
+    <script src="https://unpkg.com/esri-leaflet-geocoder"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.9.0/Sortable.js"></script>
+    <script src="FileSaver.js"></script>
+    <style>
+    html, body{
+      height: 100%;
+    }
+    .container-fluid{
+      height: 100%
+    }
+    .mainrow{
+      height: 100% 
+    }
+    .leaflet-control-container .leaflet-routing-container-hide{
+      display: none;
+    }
+    #mainrow{
+      display: -webkit-box;
+      display: -webkit-flex;
+      display: -ms-flexbox;
+      display: flex;
+    }
+    #sidebar{
+      height: 100%;
+      overflow-y: hidden;
+      overflow-x: hidden;
+    }
+    #logoImage{
+      width: 100%;  
+    }
+    #newLineTitle{
+      text-align: center;
+      font-family: Blippo, fantasy;
+      font-size: 2em;
+      color: blue;
+    }
+    #newLineButton{
+      width: 150px;
+    }
+    #lines{
+      max-height: 500px;
+      overflow-y: auto; 
+    }
+    #saveLoadButtons{
+      position: absolute;
+      width: 100%;
+      bottom: 30px;
+      margin-right: 0;
+      text-align: center;
+    }
+    #saveButton{
+      width: 100%;
+    }
+    #loadButton{
+      width: 100%;
+    }
+    #map{
+      height: 100%;
+    }
+    #stops{
+      max-height: 500px;
+      overflow-y: scroll;
+    }
+    </style>
+</head>
+<body>
+  <div class="container-fluid">
+    <div id="mainrow" class="row mainrow">
+      <div id="sidebar" class="col-lg-3 overflow-auto">
+        <div class="row">
+          <img src="mybuscompany.PNG" id="logoImage" class="rounded mx-auto d-block" alt="MyBusCompany">
+        </div>
+        <div class="row">
+          <button type="button" id="newLineButton" class="btn btn-success mx-auto d-block">Create a New Line</button>
+        </div>
+        <br>
+        <div class="collapse" id="newLineCollapse">
+          <div class="card">
+            <div id="createNewLineBody" class="card-body">
+              <div id="alertsDiv"></div>
+              <h1 id="newLineTitle">New Bus Line</h1>
+              <div class="form-group">
+                <label for="name">Name</label>
+                <input type="text" class="form-control" id="name">
+              </div>
+              <div class="form-group">
+                <label for="color">Line Color</label>
+                <input type="color" class="form-control" id="color" value="#ff0000">
+              </div>
+              <label>Click on the map to add stops</label>
+              <br>
+              <button type="button" id="createLineButton" class="btn btn-success">Create</button>
+            </div>
+          </div>
+        </div>
+        <br>
+        <ol id="lines" class="list-group"></ol>
+        <div id="saveLoadButtons" class="row">
+          <input type="file" id="loadFileInput" style="visibility:hidden"/>
+          <div class="col-lg-6">
+            <button type="button" id="saveButton" class="btn btn-primary">Save</button>
+          </div>
+          <div class="col-lg-6">
+            <button type="button" id="loadButton" class="btn btn-primary">Load</button>
+          </div>
+        </div>
+      </div>
+      <div id="map" class="col-lg-9"></div>
+      <div class="modal fade" id="moreOpsModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="moreOpsModalTitle">Modal title</h5>
+              <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+              </button>
+            </div>
+            <div class="modal-body">
+              <div class="row mainrow">
+                <div class="col-lg-6">
+                  <h3>Stops</h3>
+                  <ol id="stops" class="list-group"></ol>
+                </div>
+                <div class="col-lg-6">
+                  <button id="deleteLineButton" class="btn btn-danger">Delete Line</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal fade" id="warningModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="warningModalTitle">Warning</h5>
+              <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+              </button>
+            </div>
+            <div class="modal-body">
+              <p id="warningModalText"></p>
+            </div>
+            <div class="modal-footer">
+              <button id="confirmWarning" class="btn btn-success">Yes</button>
+              <button id="abortOverride" class="btn btn-danger" onclick="cancelLoad()">No</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="main.js"></script>
+  <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+</body>
+</html>
