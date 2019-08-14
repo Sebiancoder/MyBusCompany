@@ -534,19 +534,91 @@ function buildListObject(route) {
     originAndDestination.innerHTML = busStops[route.stops[0]].stopName + " - " + busStops[route.stops[route.stops.length - 1]].stopName;
 
     $("#" + route.name + "ID").append(originAndDestination);
+    
+    var buttonsRow = document.createElement("div");
+    buttonsRow.id = route.name + "Buttons";
+    buttonsRow.setAttribute("style", "text-align: center; width: 100%");
+    buttonsRow.setAttribute("class", "row");
+    
+    $("#" + route.name + "ID").append(buttonsRow);
+    
+    var leftButtonCol = document.createElement("div");
+    leftButtonCol.id = route.name + "LBCol";
+    leftButtonCol.setAttribute("class", "col-lg-6");
+    
+    var rightButtonCol = document.createElement("div");
+    rightButtonCol.id = route.name + "RBCol";
+    rightButtonCol.setAttribute("class", "col-lg-6");
+    
+    $("#" + route.name + "Buttons").append(leftButtonCol);
+    $("#" + route.name + "Buttons").append(rightButtonCol);
 
+    var addStopsButton = document.createElement("button");
+    addStopsButton.id = route.name + "ASButtonID";
+    addStopsButton.setAttribute("type", "button");
+    addStopsButton.setAttribute("class", "btn btn-primary");
+    addStopsButton.setAttribute("style", "width: 100%;");
+    addStopsButton.innerHTML = "Add Stops";
+    
     var moreOpsButton = document.createElement("button");
-    moreOpsButton.id = route.name + "ButtonID";
+    moreOpsButton.id = route.name + "MOButtonID";
     moreOpsButton.setAttribute("type", "button");
     moreOpsButton.setAttribute("class", "btn btn-primary");
+    moreOpsButton.setAttribute("style", "width: 100%");
     moreOpsButton.innerHTML = "More Options";
 
-    $("#" + route.name + "ID").append(moreOpsButton);
+    $("#" + route.name + "LBCol").append(addStopsButton);
+    $("#" + route.name + "RBCol").append(moreOpsButton);
+    
+    $("#" + route.name + "ASButtonID").click(function(e) {
+      
+      route = busRoutes[e.target.id.replace("ASButtonID", "ID")];
+      
+      if(e.target.innerHTML != "Finish"){
+      
+        e.target.innerHTML = "Finish";
+      
+        var addStopsText = document.createElement("h6");
+        addStopsText.id = route.name + "ASText";
+        addStopsText.innerHTML = "Click on the map to add stops to the end of the selected line";
+      
+        $("#" + route.name + "ID").append(addStopsText);
+      
+        routeBeingEdited = true;
+        
+      } else {
+        
+        routeBeingEdited = false;
+        
+        route.stops = route.stops.concat(pendingStopCoords);
+        route.route.setWaypoints(route.stops.map(a => busStops[a].stopCoords));
+        
+        for (var i = 0; i < pendingStopCoords.length; i++) {
 
-    $("#" + route.name + "ButtonID").click(function(e) {
+          if (!busStops[pendingStopCoords[i]].routes.includes(route.name + "ID")) {
 
-        busRoutes[e.target.id.replace("ButtonID", "ID")];
-        initModal(busRoutes[e.target.id.replace("ButtonID", "ID")]);
+            busStops[pendingStopCoords[i]].routes.push(route.name + "ID");
+
+          }
+
+          busStops[pendingStopCoords[i]].circle.setStyle({fillColor: "#ffffff"});
+
+        }
+        
+        pendingStopCoords = [];
+        $("#" + route.name + "ASText").remove();
+        
+        e.target.innerHTML = "Add Stops";
+        
+        updateListObject(route.name + "ID");
+        
+      }
+      
+    });
+
+    $("#" + route.name + "MOButtonID").click(function(e) {
+
+        initModal(busRoutes[e.target.id.replace("MOButtonID", "ID")]);
 
     });
 
