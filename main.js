@@ -1,4 +1,4 @@
-var accessToken = 'pk.eyJ1Ijoic2ViaWFuY29kZXIiLCJhIjoiY2pzanFzZTVmMHh3NTQ1bHB0N2c3MXV4bCJ9.8UIykQeOfgk9gtIo679N2w';
+var accessToken = '{insert MapBox API Token}';
 
 var routeBeingEdited = false;
 var pendingStopCoords = [];
