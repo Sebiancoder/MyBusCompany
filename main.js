@@ -116,6 +116,14 @@ stopCircleFeatureGroup.on("click", function(stopClicked) {
             for (var i = 0; i < busStopClicked.routes.length; i++) {
 
                 busRoutes[busStopClicked.routes[i]].stops.splice(busRoutes[busStopClicked.routes[i]].stops.indexOf(stopClicked.layer.getLatLng().toString()), 1);
+
+                busRoutes[busStopClicked.routes[i]].route.remove();
+                busRoutes[busStopClicked.routes[i]].route = createRoutingObject(
+                    busRoutes[busStopClicked.routes[i]].stops.map(a => busStops[a].stopCoords),
+                    busRoutes[busStopClicked.routes[i]].name,
+                    busRoutes[busStopClicked.routes[i]].color
+                )
+
                 busRoutes[busStopClicked.routes[i]].route.setWaypoints(busRoutes[busStopClicked.routes[i]].stops.map(a => busStops[a].stopCoords));
 
             }
@@ -459,12 +467,61 @@ function createAlert(message) {
 
 }
 
+function createRoutingObject(waypoints, lineName, lineColor){
+
+    var router = L.Routing.osrmv1();
+
+    waystops = waypoints.map(a => ({latLng: a}))
+    console.log(waystops);
+
+    router.route(waystops, function(error, routes){
+
+        if(error != null){console.log(error)}
+
+        var line = L.Routing.line(
+            routes[0],
+            {
+                styles: [{
+                    color: lineColor,
+                    opacity: 1,
+                    weight: 5
+                }],
+                addWaypoints: false
+            }
+        ).addTo(map);
+
+        busRoutes[lineName + "ID"].route = line;
+
+        line.eachLayer(function(layer){
+
+            console.log(layer);
+
+        });
+
+    });
+
+}
+
 function createNewLine() {
 
     var lineName = $("#name").val();
     var lineColor = $("#color").val();
 
-    var lineRoute = L.Routing.control({
+    var route = {
+        name: lineName,
+        color: lineColor,
+        stops: pendingStopCoords
+    }
+
+    busRoutes[lineName + "ID"] = route;
+
+    var lineRoute = createRoutingObject(
+        pendingStopCoords.map(a => busStops[a].stopCoords),
+        lineName,
+        lineColor
+     );
+
+    /*var lineRoute = L.Routing.control({
         waypoints: pendingStopCoords.map(a => busStops[a].stopCoords),
         lineOptions: {
             styles: [{
@@ -476,18 +533,9 @@ function createNewLine() {
         createMarker: function() {
             return null;
         }
-    }).addTo(map);
-
-    lineRoute.hide();
+    }).addTo(map); */
 
     stopCircleFeatureGroup.bringToFront();
-
-    var route = {
-        name: lineName,
-        color: lineColor,
-        route: lineRoute,
-        stops: pendingStopCoords
-    }
 
     for (var i = 0; i < pendingStopCoords.length; i++) {
 
@@ -502,8 +550,6 @@ function createNewLine() {
         });
 
     }
-
-    busRoutes[lineName + "ID"] = route;
 
     buildListObject(route);
 
@@ -534,22 +580,22 @@ function buildListObject(route) {
     originAndDestination.innerHTML = busStops[route.stops[0]].stopName + " - " + busStops[route.stops[route.stops.length - 1]].stopName;
 
     $("#" + route.name + "ID").append(originAndDestination);
-    
+
     var buttonsRow = document.createElement("div");
     buttonsRow.id = route.name + "Buttons";
     buttonsRow.setAttribute("style", "text-align: center; width: 100%");
     buttonsRow.setAttribute("class", "row");
-    
+
     $("#" + route.name + "ID").append(buttonsRow);
-    
+
     var leftButtonCol = document.createElement("div");
     leftButtonCol.id = route.name + "LBCol";
     leftButtonCol.setAttribute("class", "col-lg-6");
-    
+
     var rightButtonCol = document.createElement("div");
     rightButtonCol.id = route.name + "RBCol";
     rightButtonCol.setAttribute("class", "col-lg-6");
-    
+
     $("#" + route.name + "Buttons").append(leftButtonCol);
     $("#" + route.name + "Buttons").append(rightButtonCol);
 
@@ -559,7 +605,7 @@ function buildListObject(route) {
     addStopsButton.setAttribute("class", "btn btn-primary");
     addStopsButton.setAttribute("style", "width: 100%;");
     addStopsButton.innerHTML = "Add Stops";
-    
+
     var moreOpsButton = document.createElement("button");
     moreOpsButton.id = route.name + "MOButtonID";
     moreOpsButton.setAttribute("type", "button");
@@ -569,30 +615,36 @@ function buildListObject(route) {
 
     $("#" + route.name + "LBCol").append(addStopsButton);
     $("#" + route.name + "RBCol").append(moreOpsButton);
-    
+
     $("#" + route.name + "ASButtonID").click(function(e) {
-      
+
       route = busRoutes[e.target.id.replace("ASButtonID", "ID")];
-      
+
       if(e.target.innerHTML != "Finish"){
-      
+
         e.target.innerHTML = "Finish";
-      
+
         var addStopsText = document.createElement("h6");
         addStopsText.id = route.name + "ASText";
         addStopsText.innerHTML = "Click on the map to add stops to the end of the selected line";
-      
+
         $("#" + route.name + "ID").append(addStopsText);
-      
+
         routeBeingEdited = true;
-        
+
       } else {
-        
+
         routeBeingEdited = false;
-        
+
         route.stops = route.stops.concat(pendingStopCoords);
-        route.route.setWaypoints(route.stops.map(a => busStops[a].stopCoords));
-        
+
+        busRoutes[route.name + "ID"].route.remove();
+        busRoutes[route.name + "ID"].route = createRoutingObject(
+            route.stops.map(a => busStops[a].stopCoords),
+            route.name,
+            route.color
+        );
+
         for (var i = 0; i < pendingStopCoords.length; i++) {
 
           if (!busStops[pendingStopCoords[i]].routes.includes(route.name + "ID")) {
@@ -604,16 +656,16 @@ function buildListObject(route) {
           busStops[pendingStopCoords[i]].circle.setStyle({fillColor: "#ffffff"});
 
         }
-        
+
         pendingStopCoords = [];
         $("#" + route.name + "ASText").remove();
-        
+
         e.target.innerHTML = "Add Stops";
-        
+
         updateListObject(route.name + "ID");
-        
+
       }
-      
+
     });
 
     $("#" + route.name + "MOButtonID").click(function(e) {
