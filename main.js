@@ -1,10 +1,20 @@
-var accessToken = '{insert MapBox API Token}';
+/**
+ * JS for MBS
+ * @version 1.1
+ * @author Sebastian Jaskowski
+ */
 
-var routeBeingEdited = false;
-var pendingStopCoords = [];
-var busRoutes = {};
-var busStops = {};
+// access token for MapBox, used to get map tiles
+var accessToken = 'pk.eyJ1Ijoic2ViaWFuY29kZXIiLCJhIjoiY2pyYXY0ZW1zMG96cTQzcnAydm8ybW5mdCJ9.zp_NFlwAb-UEyfscd2lj0A';
 
+var routeBeingEdited = false;    // whether of not a route is currently being edited on the map
+var pendingStopCoords = [];    // the coordinates of stops that have been created and are about to be put into a route
+var busRoutes = {};    // array of all bus routes
+var busStops = {};    // array of all bus stops
+var routingLines = {}; // ??????
+
+
+// ???????
 function cancelLoad() {
 
     $("#warningModal").modal("hide");
@@ -12,35 +22,44 @@ function cancelLoad() {
 
 }
 
+// instantiate the map
 var map = L.map('map').setView([39.9526, -75.1652], 13);
 
-var streetMap = L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token={accessToken}', {
+// configuration for street map
+var streetMap = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
     attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a             >',
     maxZoom: 18,
-    id: 'mapbox.streets',
+    id: 'mapbox/streets-v11',
     accessToken: accessToken,
 }).addTo(map);
 
-var satelliteMap = L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token={accessToken}', {
+// configuration for satellite map
+var satelliteMap = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
     attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a             >',
     maxZoom: 18,
-    id: 'mapbox.satellite',
+    id: 'mapbox/satellite-streets-v11',
     accessToken: accessToken,
 });
 
+// combines street and satellite map
 var baseMaps = {
     "Street": streetMap,
     "Satellite": satelliteMap
 };
 
+// add map configurations to main map
 L.control.layers(baseMaps).addTo(map);
 
+// Leaflet Feature Group containing all "stop circles" on the map, all stop circles are added to this group
 var stopCircleFeatureGroup = L.featureGroup().addTo(map);
 
+// runs when map is clicked
 map.on("click", function(e) {
 
+    // runs if a route is being edited on a map, and therefore a map click means the creation of a new stop
     if (routeBeingEdited) {
 
+        // create a bus stop object
         busStop = {
             stopCoords: e.latlng,
             stopName: e.latlng.toString(),
@@ -53,30 +72,48 @@ map.on("click", function(e) {
             }).addTo(stopCircleFeatureGroup)
         };
 
+        // The id of a bus stop is its coordinates(e.latlng) in string form
+        // add the bus stop to the busStops array
         busStops[busStop.stopName] = busStop;
+
+        // adds id/coordinates of the bus stop to pendingStopCoords to hold them for the creation of the route
         pendingStopCoords.push(busStop.stopName);
 
     }
 
 });
 
+// runs when any bus stop circle is clicked
 stopCircleFeatureGroup.on("click", function(stopClicked) {
 
+    // runs if the route is currently being edited, meaning the stop clicked is added to the line being edited
     if (routeBeingEdited) {
 
+        //prevents click from triggering listener on map, click only triggers circle listener coded here
         L.DomEvent.stop(stopClicked);
+
+        // adds id/coordinates of the bus stop to pendingStopCoords to hold them for the creation of the route
         pendingStopCoords.push(stopClicked.layer.getLatLng().toString());
+
+        // sets the color of the stop to black to signal the stop has been clicked and included in new line
         busStops[stopClicked.layer.getLatLng().toString()].circle.setStyle({
             fillColor: "#000000"
         });
 
+    // runs if the route is not being edited, leads to an info box about the stop popping up
     } else {
 
+        // variable that is true if the stop is deleted
+         var stopDeleted = false;
+
+        // gets reference to the bus stop clicked using its coordinateID
         var busStopClicked = busStops[stopClicked.layer.getLatLng().toString()];
 
+        // creates div for popup window
         var popupContent = document.createElement("div");
         popupContent.setAttribute("style", "text-align: center");
 
+        // creates popup heading with stop name, which is stop coordinates unless changed.
         var popupContentHeading = document.createElement('h5');
         popupContentHeading.id = busStopClicked.stopName + 'H';
         popupContentHeading.setAttribute("contentEditable", "true");
@@ -84,6 +121,7 @@ stopCircleFeatureGroup.on("click", function(stopClicked) {
 
         popupContent.appendChild(popupContentHeading);
 
+        // for every route at this stop, stored in busStop.routes, create a graphic displaying route name
         for (var i = 0; i < busStopClicked.routes.length; i++) {
 
             var route = busRoutes[busStopClicked.routes[i]];
@@ -99,6 +137,7 @@ stopCircleFeatureGroup.on("click", function(stopClicked) {
 
         }
 
+        // create the delete stop button
         var deleteStopButton = document.createElement("button");
         deleteStopButton.id = "deleteStopButton";
         deleteStopButton.setAttribute("class", "btn btn-danger");
@@ -107,40 +146,51 @@ stopCircleFeatureGroup.on("click", function(stopClicked) {
 
         popupContent.appendChild(deleteStopButton);
 
+        // instantiate and open the popup
         var stopPopup = L.popup().setLatLng(stopClicked.layer.getLatLng()).setContent(popupContent).openOn(map);
 
+        // runs when the delete stop button is pressed
         $("#deleteStopButton").click(function() {
 
+            stopDeleted = true;
+
+            // removes the circle graphic for the stop
             busStopClicked.circle.remove();
 
+            // iterate through all routes that stop at this stop
             for (var i = 0; i < busStopClicked.routes.length; i++) {
 
+                // remove the to-be-deleted stop from all routes that stop at the stop
                 busRoutes[busStopClicked.routes[i]].stops.splice(busRoutes[busStopClicked.routes[i]].stops.indexOf(stopClicked.layer.getLatLng().toString()), 1);
-
-                busRoutes[busStopClicked.routes[i]].route.remove();
-                busRoutes[busStopClicked.routes[i]].route = createRoutingObject(
-                    busRoutes[busStopClicked.routes[i]].stops.map(a => busStops[a].stopCoords),
-                    busRoutes[busStopClicked.routes[i]].name,
-                    busRoutes[busStopClicked.routes[i]].color
-                )
-
-                busRoutes[busStopClicked.routes[i]].route.setWaypoints(busRoutes[busStopClicked.routes[i]].stops.map(a => busStops[a].stopCoords));
 
             }
 
+            // remove the deleted busStop from the busStops object
             delete busStops[busStopClicked.stopCoords.toString()];
 
+            // close popup
             map.closePopup();
+
+            // rerender all routes
+            updateRoutingObjects();
 
         });
 
+        // runs when the popup closes
         map.on('popupclose', function(event) {
 
-            busStops[event.popup.getLatLng().toString()].stopName = event.popup.getContent().children[0].textContent;
+            // this code only runs if the stop is not deleted
+            if (!stopDeleted) {
 
-            for (var j = 0; j < busStops[event.popup.getLatLng().toString()].routes.length; j++) {
+                // set name of bus stop to the header of the popup, user can change name here
+                busStops[event.popup.getLatLng().toString()].stopName = event.popup.getContent().children[0].textContent;
+            
+                // update GUI on left panel (this is needed here because changing the name of a bus stop could have changed origin or destination of bus line)
+                for (var j = 0; j < busStops[event.popup.getLatLng().toString()].routes.length; j++) {
 
                 updateListObject(busStops[event.popup.getLatLng().toString()].routes[j]);
+
+            }
 
             }
 
@@ -217,9 +267,7 @@ $("#newLineButton").click(function() {
 $("#saveButton").click(function() {
 
     var routesCopy = jQuery.extend(true, {}, busRoutes);
-    console.log(busRoutes);
     var stopsCopy = jQuery.extend(true, {}, busStops);
-    console.log(busStops);
 
     var routeIDs = Object.keys(routesCopy);
 
@@ -275,8 +323,6 @@ $("#loadButton").click(function() {
         $("#loadFileInput").click();
         $("#loadFileInput").on("change", function() {
 
-            console.log("File selected");
-
             var uploadedFile = $("#loadFileInput").prop("files").item(0);
 
             if (uploadedFile != null) {
@@ -308,21 +354,11 @@ $("#loadButton").click(function() {
 
                     for (var i = 0; i < routeIDs.length; i++) {
 
-                        var routingObject = L.Routing.control({
-                            waypoints: (routes[routeIDs[i]].stops).map(a => busStops[a].stopCoords),
-                            lineOptions: {
-                                styles: [{
-                                    color: routes[routeIDs[i]].color,
-                                    opacity: 1,
-                                    weight: 5
-                                }]
-                            },
-                            createMarker: function() {
-                                return null;
-                            }
-                        }).addTo(map);
-
-                        routingObject.hide();
+                        var routingObject = createRoutingObject(
+                          (routes[routeIDs[i]].stops).map(a => busStops[a].stopCoords),
+                          routes[routeIDs[i]].name,
+                          routes[routeIDs[i]].color
+                        );
 
                         routes[routeIDs[i]].route = routingObject;
 
@@ -332,7 +368,6 @@ $("#loadButton").click(function() {
 
                     }
 
-                    console.log(busRoutes);
                     $("#loadFileInput").off();
                     $("#loadFileInput").val(null);
 
@@ -391,7 +426,6 @@ $("#deleteLineButton").on("click", function() {
 
         routeID = $("#moreOpsModalTitle").text() + "ID";
 
-        console.log("This is running");
         deleteLine(routeID);
 
         $("#warningModal").modal("hide");
@@ -403,8 +437,6 @@ $("#deleteLineButton").on("click", function() {
 });
 
 function deleteLine(routeID) {
-
-    busRoutes[routeID].route.remove();
 
     for (var i = 0; i < busRoutes[routeID].stops.length; i++) {
 
@@ -424,6 +456,8 @@ function deleteLine(routeID) {
     $("#" + routeID).remove();
 
     delete busRoutes[routeID];
+
+    updateRoutingObjects();
 
 }
 
@@ -469,38 +503,57 @@ function createAlert(message) {
 
 function createRoutingObject(waypoints, lineName, lineColor){
 
-    var router = L.Routing.osrmv1();
+    var router = L.Routing.osrmv1({router: L.Routing.mapbox(accessToken)});
 
-    waystops = waypoints.map(a => ({latLng: a}))
-    console.log(waystops);
+    waystops = waypoints.map(a => ({latLng: a}));
 
     router.route(waystops, function(error, routes){
 
         if(error != null){console.log(error)}
 
-        var line = L.Routing.line(
-            routes[0],
+        routingCoords = routes[0].coordinates;
+        console.log(routingCoords);
+
+        routingObject = {};
+
+        for(var i = 0; i < (routingCoords.length - 1); i++){
+
+          var segmentID = routingCoords[i].toString() + routingCoords[i + 1].toString();
+          var segmentIDReversed = routingCoords[i + 1].toString() + routingCoords[i].toString();
+
+          if(!routingLines.hasOwnProperty(segmentID)){
+
+            routingLines[segmentID] = 0;
+            routingLines[segmentIDReversed] = 0;
+
+          } else {
+
+            routingLines[segmentID]++;
+            routingLines[segmentIDReversed]++;
+
+          }
+
+          routingObject[segmentID] = L.polyline(
+            [routingCoords[i], routingCoords[i + 1]],
             {
-                styles: [{
-                    color: lineColor,
-                    opacity: 1,
-                    weight: 5
-                }],
-                addWaypoints: false
+              color: lineColor,
+              smoothFactor: 0.5,
+              weight: 5,
+              opacity: 1,
+              offset: routingLines[segmentID] * 5
             }
-        ).addTo(map);
+          ).addTo(map);
 
-        busRoutes[lineName + "ID"].route = line;
+        }
 
-        line.eachLayer(function(layer){
-
-            console.log(layer);
-
-        });
+        busRoutes[lineName + "ID"].route = routingObject;
 
     });
 
+    stopCircleFeatureGroup.bringToFront();
+
 }
+
 
 function createNewLine() {
 
@@ -513,29 +566,13 @@ function createNewLine() {
         stops: pendingStopCoords
     }
 
-    busRoutes[lineName + "ID"] = route;
-
-    var lineRoute = createRoutingObject(
-        pendingStopCoords.map(a => busStops[a].stopCoords),
+    createRoutingObject(
+        pendingStopCoords.map(a => busStops[a.toString()].stopCoords),
         lineName,
         lineColor
      );
 
-    /*var lineRoute = L.Routing.control({
-        waypoints: pendingStopCoords.map(a => busStops[a].stopCoords),
-        lineOptions: {
-            styles: [{
-                color: lineColor,
-                opacity: 1,
-                weight: 5
-            }]
-        },
-        createMarker: function() {
-            return null;
-        }
-    }).addTo(map); */
-
-    stopCircleFeatureGroup.bringToFront();
+    busRoutes[lineName + "ID"] = route;
 
     for (var i = 0; i < pendingStopCoords.length; i++) {
 
@@ -695,9 +732,39 @@ function initModal(route) {
 
 }
 
+// update GUI of route list object (left panel)
 function updateListObject(routeID) {
 
+    //get the route to be updated based on routeID
     route = busRoutes[routeID];
     $("#" + route.name + "ODID").text(busStops[route.stops[0]].stopName + " - " + busStops[route.stops[route.stops.length - 1]].stopName);
+
+}
+
+function updateRoutingObjects(){
+
+  routingLines = 0;
+
+  for(var i = 0; i < Object.keys(busRoutes).length; i++){
+
+    var routeID = busRoutes[Object.keys(busRoutes)[i]].name + "ID";
+    console.log(routeID);
+    console.log(busRoutes[routeID]);
+
+    routingObjectKeys = Object.keys(busRoutes[routeID].route);
+
+    for(var j = 0; j < routingObjectKeys.length; j++){
+
+      busRoutes[routeID].route[routingObjectKeys[j]].remove();
+
+    }
+
+    busRoutes[routeID].route = createRoutingObject(
+      busRoutes[routeID].stops.map(a => busStops[a].stopCoords),
+      busRoutes[routeID].name,
+      busRoutes[routeID].color
+    )
+
+  }
 
 }
